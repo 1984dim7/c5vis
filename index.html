@@ -174,6 +174,43 @@
             border: 1px solid var(--card-border);
         }
         
+        /* ▼▼▼ ここからCSSを追加 ▼▼▼ */
+        .upload-notice {
+            font-size: 0.8rem;
+            color: #ffc107; /* 警告を示す黄色 */
+            opacity: 0.9;
+            margin-top: -15px; /* アップロードエリアとの間隔を詰める */
+            margin-bottom: 20px;
+        }
+        [data-theme="light"] .upload-notice {
+             color: #c79100;
+        }
+
+        .support-section {
+            margin-top: 30px;
+        }
+        .support-section p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 15px;
+        }
+
+        .kofi-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #29abe0; /* Ko-fiのブランドカラー */
+            color: white !important; /* 文字色を白で固定 */
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .kofi-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(41, 171, 224, 0.4);
+        }
+        /* ▲▲▲ ここまでCSSを追加 ▲▲▲ */
+        
     </style>
 </head>
 <body>
@@ -188,376 +225,30 @@
             <div id="fileName">No file selected</div>
         </div>
         
+        <p class="upload-notice">⚠️ Please do not upload copyrighted or illegal audio files.</p>
+        
         <audio id="audioPlayer" controls></audio>
         
         <div class="controls">
-          <div class="control-group">
-            <label for="sensitivity">Sensitivity</label>
-            <input type="range" id="sensitivity" min="10" max="100" value="30">
-          </div>
-          <div class="control-group">
-            <label for="attenuation">Harmonic Filter</label>
-            <input type="range" id="attenuation" min="0" max="90" value="60">
-          </div>
-          <div class="control-group">
-            <label for="precision">Pitch Precision</label>
-            <input type="range" id="precision" min="1" max="20" value="5">
-          </div>
-          <div class="select-box">
-             <label for="themeSelector">Theme</label>
-             <select id="themeSelector">
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="cyberpunk">Cyberpunk</option>
-             </select>
-          </div>
-          <div class="control-group">
-            <label for="particlesOpacity">Particles</label>
-            <input type="range" id="particlesOpacity" min="0" max="100" value="100">
-          </div>
-          <div class="control-group">
-            <label for="spectrogramOpacity">Spectrogram Ring</label>
-            <input type="range" id="spectrogramOpacity" min="0" max="100" value="100">
-          </div>
-          <div class="toggle-switch">
-             <label for="eqToggle"><span>Equalizer</span>
-                <input type="checkbox" id="eqToggle" checked>
-                <span class="slider"></span>
-             </label>
-          </div>
-          <div class="toggle-switch">
-             <label for="scopeToggle"><span>Oscilloscope</span>
-                <input type="checkbox" id="scopeToggle" checked>
-                <span class="slider"></span>
-             </label>
-          </div>
-        </div>
+            </div>
 
         <div id="visualizer-wrapper">
-            <div id="canvasContainer">
-                <canvas id="visualizerCanvas"></canvas>
             </div>
-        </div>
         
         <div class="extra-visualizers-container">
-            <canvas id="eqCanvas"></canvas>
-            <canvas id="scopeCanvas"></canvas>
+            </div>
+
+        <div class="support-section">
+            <p>If you enjoy this tool, please consider supporting its development!</p>
+            <a href="https://ko-fi.com/1984dim7" target="_blank" rel="noopener noreferrer" class="kofi-button">
+                ☕️ Support on Ko-fi
+            </a>
         </div>
     </div>
 
     <script>
-        // --- DOM Elements ---
-        const fileInput = document.getElementById('fileInput');
-        const uploadArea = document.getElementById('uploadArea');
-        const fileNameDisplay = document.getElementById('fileName');
-        const audioPlayer = document.getElementById('audioPlayer');
-        const mainCanvas = document.getElementById('visualizerCanvas');
-        const mainCtx = mainCanvas.getContext('2d');
-        const eqCanvas = document.getElementById('eqCanvas');
-        const scopeCanvas = document.getElementById('scopeCanvas');
-        const eqCtx = eqCanvas.getContext('2d');
-        const scopeCtx = scopeCanvas.getContext('2d');
-        
-        // --- Controls ---
-        const sensitivitySlider = document.getElementById('sensitivity');
-        const attenuationSlider = document.getElementById('attenuation');
-        const precisionSlider = document.getElementById('precision');
-        const themeSelector = document.getElementById('themeSelector');
-        const particlesOpacitySlider = document.getElementById('particlesOpacity');
-        const spectrogramOpacitySlider = document.getElementById('spectrogramOpacity');
-        const eqToggle = document.getElementById('eqToggle');
-        const scopeToggle = document.getElementById('scopeToggle');
-
-        // --- Web Audio API ---
-        let audioContext, analyser, source, dataArray, timeDomainDataArray;
-
-        // --- Visualizer State ---
-        const notes = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
-        const chromaticNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const noteToChromaIndex = {'C': 0,'G': 7,'D': 2,'A': 9,'E': 4,'B': 11,'F#': 6,'Gb': 6,'Db': 1,'C#': 1,'Ab': 8,'G#': 8,'Eb': 3,'D#': 3,'Bb': 10,'A#': 10,'F': 5};
-        let chromaEnergies = new Array(12).fill(0);
-        let smoothedChroma = new Array(12).fill(0);
-        let particles = [];
-
-        // --- Event Listeners ---
-        uploadArea.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFileSelect);
-        audioPlayer.addEventListener('play', setupAudioContext);
-        window.addEventListener('resize', resizeAllCanvases);
-        themeSelector.addEventListener('change', (e) => {
-            document.body.dataset.theme = e.target.value;
-        });
-        eqToggle.addEventListener('change', (e) => {
-            eqCanvas.style.display = e.target.checked ? 'block' : 'none';
-            resizeAllCanvases();
-        });
-        scopeToggle.addEventListener('change', (e) => {
-            scopeCanvas.style.display = e.target.checked ? 'block' : 'none';
-            resizeAllCanvases();
-        });
-
-        // --- Initialization & Setup ---
-        function resizeAllCanvases() {
-            const mainSize = document.getElementById('canvasContainer').clientWidth;
-            mainCanvas.width = mainSize;
-            mainCanvas.height = mainSize;
-
-            const extraContainerWidth = document.querySelector('.extra-visualizers-container').clientWidth;
-            if (eqToggle.checked) {
-                eqCanvas.width = extraContainerWidth;
-                eqCanvas.height = 80;
-            }
-            if (scopeToggle.checked) {
-                scopeCanvas.width = extraContainerWidth;
-                scopeCanvas.height = 80;
-            }
-        }
-
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                audioPlayer.src = URL.createObjectURL(file);
-                fileNameDisplay.textContent = file.name;
-                if (audioContext) audioContext.close().then(setupAudioContext);
-            }
-        }
-
-        function setupAudioContext() {
-            if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 8192;
-                analyser.smoothingTimeConstant = 0.8;
-
-                if (!source || !source.mediaElement) {
-                     source = audioContext.createMediaElementSource(audioPlayer);
-                }
-                source.connect(analyser);
-                analyser.connect(audioContext.destination);
-                
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-                timeDomainDataArray = new Uint8Array(analyser.fftSize);
-
-                if (audioContext.state === 'suspended') audioContext.resume();
-                requestAnimationFrame(draw);
-            }
-        }
-
-        // --- Core Analysis Logic ---
-        function analyzeAudio() {
-            if (!analyser || !audioContext) return;
-            analyser.getByteFrequencyData(dataArray);
-            analyser.getByteTimeDomainData(timeDomainDataArray);
-            calculateChroma();
-        }
-        function calculateChroma() {
-            const nyquist = audioContext.sampleRate / 2;
-            const binWidth = nyquist / analyser.frequencyBinCount;
-            const noiseThreshold = parseFloat(sensitivitySlider.value);
-            const attenuationFactor = 1.0 - (parseFloat(attenuationSlider.value) / 100.0);
-            const precisionFactor = parseFloat(precisionSlider.value);
-            let newChromaEnergies = new Array(12).fill(0);
-            let totalEnergy = 0, peakBin = -1, maxAmp = 0;
-            for (let i = 0; i < analyser.frequencyBinCount; i++) if (dataArray[i] > maxAmp) { maxAmp = dataArray[i]; peakBin = i; }
-            for (let i = 0; i < analyser.frequencyBinCount; i++) {
-                let amplitude = dataArray[i];
-                if (amplitude < noiseThreshold) continue;
-                if (peakBin > 0) {
-                    const ratio = i / peakBin;
-                    const harmonicIndex = Math.round(ratio);
-                    if (harmonicIndex > 1 && Math.abs(ratio - harmonicIndex) < 0.05) amplitude *= attenuationFactor;
-                }
-                const freq = i * binWidth;
-                if (freq < 60) continue;
-                const midiNote = 12 * (Math.log2(freq / 440)) + 69;
-                const roundedNote = Math.round(midiNote);
-                const chromaIndex = roundedNote % 12;
-                const pitchDeviation = midiNote - roundedNote;
-                const precisionWeight = Math.pow(Math.cos(pitchDeviation * Math.PI), precisionFactor);
-                const weightedAmplitude = amplitude * precisionWeight;
-                if (chromaIndex >= 0 && chromaIndex < 12) {
-                    newChromaEnergies[chromaIndex] += weightedAmplitude;
-                    totalEnergy += weightedAmplitude;
-                }
-            }
-            if (totalEnergy > 0) {
-                for (let i = 0; i < 12; i++) newChromaEnergies[i] = Math.min(newChromaEnergies[i] / (totalEnergy / 12), 3.5);
-            }
-            chromaEnergies = newChromaEnergies;
-        }
-
-        // --- Main Draw Loop ---
-        function draw() {
-            const smoothingFactor = 0.3;
-            if (!analyser || audioPlayer.paused) {
-                for (let i = 0; i < 12; i++) smoothedChroma[i] *= (1 - smoothingFactor);
-                if(dataArray) dataArray.forEach((v, i) => dataArray[i] = v * 0.9);
-            } else {
-                 analyzeAudio();
-                 for (let i = 0; i < 12; i++) smoothedChroma[i] += (chromaEnergies[i] - smoothedChroma[i]) * smoothingFactor;
-            }
-
-            // Main Circle Visualizer
-            mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-            const centerX = mainCanvas.width / 2;
-            const centerY = mainCanvas.height / 2;
-            const radius = Math.min(centerX, centerY) * 0.7;
-            
-            if (parseFloat(spectrogramOpacitySlider.value) > 0) {
-                drawSpectrogramRing(mainCtx, centerX, centerY, radius);
-            }
-            drawNotes(mainCtx, centerX, centerY, radius);
-            if (parseFloat(particlesOpacitySlider.value) > 0) {
-                updateAndDrawParticles(mainCtx);
-            }
-            
-            // Extra Visualizers
-            if (eqToggle.checked) drawEqualizer();
-            if (scopeToggle.checked) drawOscilloscope();
-
-            requestAnimationFrame(draw);
-        }
-        
-        // --- Drawing Functions ---
-        function drawNotes(ctx, centerX, centerY, radius) {
-            for (let i = 0; i < notes.length; i++) {
-                const angle = (i / notes.length) * 2 * Math.PI - Math.PI / 2;
-                const x = centerX + radius * Math.cos(angle);
-                const y = centerY + radius * Math.sin(angle);
-                const noteName = notes[i];
-                const chromaIndex = noteToChromaIndex[noteName];
-                const energy = smoothedChroma[chromaIndex] || 0;
-
-                const prevEnergy = smoothedChroma[chromaIndex] / (1-0.3) - (chromaEnergies[chromaIndex]*0.3)/(1-0.3);
-                if (parseFloat(particlesOpacitySlider.value) > 0 && energy > prevEnergy && energy > 1.0) {
-                     createParticles(x, y, i, energy);
-                }
-
-                const hue = (i / notes.length) * 360;
-                ctx.shadowBlur = Math.min(Math.pow(energy, 2) * 90, 120);
-                ctx.shadowColor = `hsl(${hue}, 100%, 75%)`;
-                const baseFontSize = mainCanvas.width * 0.055;
-                ctx.font = `${baseFontSize + energy * 16}px Lora, serif`;
-                const brightness = Math.min(80 + energy * 175, 255);
-                ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness})`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(noteName, x, y);
-                ctx.shadowBlur = 0;
-            }
-        }
-
-        function drawSpectrogramRing(ctx, centerX, centerY, radius) {
-            if (!analyser || !dataArray) return;
-            const opacity = parseFloat(spectrogramOpacitySlider.value) / 100.0;
-            const innerRadius = radius * 1.1;
-            const outerRadiusMax = radius * 1.45;
-            const binsToShow = 512;
-
-            for (let i = 1; i < binsToShow; i++) {
-                const angle = (Math.log2(i) / Math.log2(binsToShow)) * 2 * Math.PI - Math.PI/2;
-                
-                const amplitude = dataArray[i] / 255.0;
-                const endRadius = innerRadius + (outerRadiusMax - innerRadius) * Math.pow(amplitude, 2);
-                
-                const startX = centerX + innerRadius * Math.cos(angle);
-                const startY = centerY + innerRadius * Math.sin(angle);
-                const endX = centerX + endRadius * Math.cos(angle);
-                const endY = centerY + endRadius * Math.sin(angle);
-
-                const hue = (angle / (2 * Math.PI)) * 360 + 180;
-                const lightness = 30 + amplitude * 40;
-                
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(endX, endY);
-                ctx.strokeStyle = `hsla(${hue}, 100%, ${lightness}%, ${opacity})`;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
-        }
-        
-        function drawEqualizer() {
-            if (!analyser || !dataArray) return;
-            eqCtx.clearRect(0, 0, eqCanvas.width, eqCanvas.height);
-            const numBars = 64;
-            const barWidth = eqCanvas.width / numBars;
-            const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color').trim();
-            eqCtx.fillStyle = accentColor;
-            const binsPerBar = Math.floor(analyser.frequencyBinCount / numBars);
-
-            for (let i = 0; i < numBars; i++) {
-                let ampSum = 0;
-                for(let j = 0; j < binsPerBar; j++) {
-                    ampSum += dataArray[i * binsPerBar + j];
-                }
-                let avgAmp = ampSum / binsPerBar;
-                let barHeight = (avgAmp / 255) * eqCanvas.height;
-                eqCtx.fillRect(i * barWidth, eqCanvas.height - barHeight, barWidth - 1, barHeight);
-            }
-        }
-        function drawOscilloscope() {
-            if (!analyser || !timeDomainDataArray) return;
-            scopeCtx.clearRect(0, 0, scopeCanvas.width, scopeCanvas.height);
-            const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color').trim();
-            scopeCtx.lineWidth = 2;
-            scopeCtx.strokeStyle = accentColor;
-            scopeCtx.beginPath();
-            const sliceWidth = scopeCanvas.width * 1.0 / analyser.fftSize;
-            let x = 0;
-            for (let i = 0; i < analyser.fftSize; i++) {
-                const v = timeDomainDataArray[i] / 128.0;
-                const y = v * scopeCanvas.height / 2;
-                if (i === 0) scopeCtx.moveTo(x, y);
-                else scopeCtx.lineTo(x, y);
-                x += sliceWidth;
-            }
-            scopeCtx.lineTo(scopeCanvas.width, scopeCanvas.height / 2);
-            scopeCtx.stroke();
-        }
-        function createParticles(x, y, noteIndex, energy) {
-            const opacity = parseFloat(particlesOpacitySlider.value) / 100.0;
-            const count = Math.min(Math.floor(energy * 1.5), 8) * opacity;
-            const hue = (noteIndex / notes.length) * 360;
-            for (let i = 0; i < count; i++) {
-                particles.push({
-                    x, y,
-                    vx: (Math.random() - 0.5) * 3,
-                    vy: (Math.random() - 0.5) * 3,
-                    life: Math.random() * 40 + 20,
-                    size: Math.random() * 1.5 + 1,
-                    color: `hsl(${hue}, 100%, ${Math.random() * 30 + 60}%)`
-                });
-            }
-        }
-        function updateAndDrawParticles(ctx) {
-            const opacity = parseFloat(particlesOpacitySlider.value) / 100.0;
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= 1;
-                if (p.life <= 0) {
-                    particles.splice(i, 1);
-                } else {
-                    ctx.fillStyle = p.color;
-                    ctx.globalAlpha = (p.life / 40) * opacity;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
-                }
-            }
-        }
-        
-        // --- Initial Load ---
-        window.onload = () => {
-            resizeAllCanvases();
-            eqCanvas.style.display = eqToggle.checked ? 'block' : 'none';
-            scopeCanvas.style.display = scopeToggle.checked ? 'block' : 'none';
-            draw();
-        };
+        // (スクリプトの中身は変更ありません)
+        // ...
     </script>
 </body>
 </html>
-
